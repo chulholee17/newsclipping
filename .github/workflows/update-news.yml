@@ -1,0 +1,35 @@
+name: Update news
+
+on:
+  schedule:
+    # 매일 08:00 KST = 전날 23:00 UTC
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch news
+        run: python3 fetch_news.py
+
+      - name: Commit news.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- news.json; then
+            echo "No changes to news.json"
+          else
+            git add news.json
+            git commit -m "chore: update news.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push
+          fi

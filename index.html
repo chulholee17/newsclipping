@@ -1,11 +1,212 @@
 <!DOCTYPE html>
-   <html lang="ko">
-   <head>
-     <meta charset="UTF-8">
-     <title>내 뉴스클리핑</title>
-   </head>
-   <body>
-     <h1>내 뉴스클리핑 사이트</h1>
-     <p>여기에 앞으로 뉴스가 나올 거예요.</p>
-   </body>
-   </html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내 뉴스클리핑</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #6b7280;
+    --accent: #1d4ed8;
+    --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 60px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  #updated { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab-btn {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 20px; }
+  #saveBtn, #clearBtn {
+    border: none;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  #saveBtn { background: var(--accent); color: #fff; }
+  #clearBtn { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  #saveStatus { align-self: center; font-size: 0.85rem; color: var(--muted); }
+  ul#list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  li.article {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  li.article a {
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+  li.article a:hover { color: var(--accent); text-decoration: underline; }
+  .meta { margin-top: 6px; color: var(--muted); font-size: 0.8rem; display: flex; gap: 8px; }
+  #empty { color: var(--muted); text-align: center; padding: 40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>내 뉴스클리핑</h1>
+  </header>
+  <p id="updated">불러오는 중...</p>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="toolbar">
+    <button id="saveBtn">저장</button>
+    <button id="clearBtn">저장된 내용 삭제</button>
+    <span id="saveStatus"></span>
+  </div>
+
+  <ul id="list"></ul>
+  <p id="empty" hidden>기사가 없습니다.</p>
+</div>
+
+<script>
+const STORAGE_KEY = "newsclipping_saved";
+let data = null;
+let currentCategory = null;
+
+async function loadNews() {
+  try {
+    const res = await fetch("news.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("news.json fetch failed: " + res.status);
+    data = await res.json();
+    renderAll();
+  } catch (err) {
+    console.error(err);
+    const saved = loadSaved();
+    if (saved) {
+      data = saved.data;
+      renderAll();
+      setStatus("네트워크 오류로 저장된 뉴스를 표시합니다 (저장 시각: " + formatDate(saved.savedAt) + ")");
+    } else {
+      document.getElementById("updated").textContent = "뉴스를 불러오지 못했습니다.";
+    }
+  }
+}
+
+function renderAll() {
+  renderUpdated();
+  renderTabs();
+  const first = data.categories[0]?.name ?? null;
+  selectCategory(currentCategory || first);
+}
+
+function renderUpdated() {
+  document.getElementById("updated").textContent = data.updated_at
+    ? "마지막 수집: " + formatDate(data.updated_at)
+    : "";
+}
+
+function renderTabs() {
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = "";
+  data.categories.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "tab-btn";
+    btn.textContent = cat.name + " (" + cat.articles.length + ")";
+    btn.dataset.name = cat.name;
+    btn.addEventListener("click", () => selectCategory(cat.name));
+    tabs.appendChild(btn);
+  });
+}
+
+function selectCategory(name) {
+  currentCategory = name;
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.name === name);
+  });
+  const cat = data.categories.find(c => c.name === name);
+  renderList(cat ? cat.articles : []);
+}
+
+function renderList(articles) {
+  const list = document.getElementById("list");
+  const empty = document.getElementById("empty");
+  list.innerHTML = "";
+  empty.hidden = articles.length > 0;
+  articles.forEach(a => {
+    const li = document.createElement("li");
+    li.className = "article";
+    const link = document.createElement("a");
+    link.href = a.link;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = a.title;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = [a.source, formatDate(a.pub_date)].filter(Boolean).join(" · ");
+    li.appendChild(link);
+    li.appendChild(meta);
+    list.appendChild(li);
+  });
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString("ko-KR", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setStatus(text) {
+  document.getElementById("saveStatus").textContent = text;
+}
+
+document.getElementById("saveBtn").addEventListener("click", () => {
+  if (!data) return;
+  const payload = { savedAt: new Date().toISOString(), data };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    setStatus("브라우저에 저장했습니다 (" + formatDate(payload.savedAt) + ")");
+  } catch (err) {
+    setStatus("저장 실패: " + err.message);
+  }
+});
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  localStorage.removeItem(STORAGE_KEY);
+  setStatus("저장된 내용을 삭제했습니다.");
+});
+
+loadNews();
+</script>
+</body>
+</html>
