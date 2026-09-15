@@ -22,14 +22,17 @@ jobs:
       - name: Fetch news
         run: python3 fetch_news.py
 
-      - name: Commit news.json if changed
+      - name: Fetch market data
+        run: python3 fetch_market.py
+
+      - name: Commit data if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- news.json; then
-            echo "No changes to news.json"
+          if git diff --quiet -- news.json market.json; then
+            echo "No changes to commit"
           else
-            git add news.json
-            git commit -m "chore: update news.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git add news.json market.json
+            git commit -m "chore: update news.json / market.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push
           fi

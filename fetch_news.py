@@ -71,7 +71,7 @@ def parse_items(xml_bytes: bytes) -> list[dict]:
     return items
 
 
-def collect_category(keywords: list[str]) -> list[dict]:
+def collect_category(category: str, keywords: list[str]) -> list[dict]:
     seen_titles = set()
     articles: list[dict] = []
     for keyword in keywords:
@@ -85,6 +85,7 @@ def collect_category(keywords: list[str]) -> list[dict]:
             if item["title"] in seen_titles:
                 continue
             seen_titles.add(item["title"])
+            item["category"] = category
             articles.append(item)
 
     articles.sort(key=lambda a: a["_sort_key"], reverse=True)
@@ -101,7 +102,7 @@ def main() -> None:
 
     for name, keywords in CATEGORIES.items():
         print(f"[{name}] 수집 중... ({', '.join(keywords)})")
-        articles = collect_category(keywords)
+        articles = collect_category(name, keywords)
         print(f"  -> {len(articles)}건 수집")
         result["categories"].append({"name": name, "articles": articles})
 
